@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PDF Question Answering System</title>
+
+<style>
+:root{
+    --bg-main:#020617;
+    --bg-card:#0f172a;
+    --bg-soft:#1f2937;
+    --border:#334155;
+    --text-main:#e5e7eb;
+    --text-muted:#9ca3af;
+    --accent:#ef4444;
+    --success-bg:#064e3b;
+    --success-text:#6ee7b7;
+}
+
+*{
+    box-sizing:border-box;
+}
+
+body{
+    margin:0;
+    font-family: "Segoe UI", Arial, sans-serif;
+    background: radial-gradient(circle at top, #111827, var(--bg-main));
+    color:var(--text-main);
+}
+
+.container{
+    max-width:900px;
+    margin:40px auto;
+    padding:20px;
+}
+
+/* ---------------- TITLE ---------------- */
+.title{
+    font-size:32px;
+    font-weight:700;
+    margin-bottom:30px;
+}
+
+/* ---------------- UPLOAD ---------------- */
+.upload-box{
+    background:var(--bg-card);
+    border:2px dashed var(--border);
+    border-radius:14px;
+    padding:24px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    transition:0.3s;
+}
+
+.upload-box:hover{
+    border-color:var(--accent);
+}
+
+.upload-left{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+}
+
+.upload-text{
+    font-size:18px;
+    font-weight:600;
+}
+
+.sub-text{
+    font-size:13px;
+    color:var(--text-muted);
+}
+
+.browse-btn{
+    padding:10px 22px;
+    border:1px solid var(--accent);
+    background:transparent;
+    color:var(--accent);
+    border-radius:8px;
+    font-weight:600;
+    cursor:pointer;
+    transition:0.25s;
+}
+
+.browse-btn:hover{
+    background:var(--accent);
+    color:white;
+}
+
+/* ---------------- FILE INFO ---------------- */
+.file-row{
+    margin-top:12px;
+    font-size:14px;
+    color:#d1d5db;
+}
+
+/* ---------------- STATUS ---------------- */
+.success{
+    background:var(--success-bg);
+    color:var(--success-text);
+    padding:12px 14px;
+    border-radius:8px;
+    margin-top:14px;
+    font-weight:600;
+}
+
+/* ---------------- CHAT ---------------- */
+.chat{
+    margin-top:22px;
+    background:var(--bg-main);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:15px;
+    height:280px;
+    overflow-y:auto;
+}
+
+.msg-user{
+    margin-bottom:10px;
+}
+
+.msg-bot{
+    margin-bottom:14px;
+    color:var(--success-text);
+}
+
+/* ---------------- QUESTION ---------------- */
+.question-box{
+    margin-top:18px;
+}
+
+input[type="text"]{
+    width:100%;
+    padding:14px;
+    background:var(--bg-soft);
+    border:1px solid var(--border);
+    border-radius:10px;
+    color:white;
+    font-size:15px;
+}
+
+input[type="text"]:focus{
+    outline:none;
+    border-color:var(--accent);
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <div class="title">PDF Question Answering System</div>
+
+    <!-- Upload -->
+    <form id="uploadForm" enctype="multipart/form-data">
+        <div class="upload-box">
+            <div class="upload-left">
+                <div class="upload-text">Upload PDF</div>
+                <div class="sub-text">Maximum 200MB • PDF format only</div>
+            </div>
+
+            <label class="browse-btn">
+                Browse Files
+                <input type="file" name="pdf" accept=".pdf" hidden required>
+            </label>
+        </div>
+    </form>
+
+    <!-- File Info -->
+    <div class="file-row" id="fileRow"></div>
+
+    <!-- Status -->
+    <div id="status"></div>
+
+    <!-- Chat -->
+    <div class="chat" id="chatBox"></div>
+
+    <!-- Question -->
+    <div class="question-box">
+        <input type="text" id="question" placeholder="Ask a question from the uploaded PDF and press Enter">
+    </div>
+
+</div>
+
+<script>
+let pdfUploaded = false;
+
+/* -------- Upload PDF -------- */
+document.querySelector('input[type="file"]').addEventListener("change", async function(){
+    const file = this.files[0];
+    if(!file) return;
+
+    const formData = new FormData();
+    formData.append("pdf", file);
+
+    document.getElementById("status").innerText = "Processing PDF...";
+
+    const response = await fetch("/upload", {
+        method: "POST",
+        body: formData
+    });
+
+    const data = await response.json();
+
+    document.getElementById("fileRow").innerText =
+        `${file.name} (${Math.round(file.size/1024)} KB)`;
+
+    document.getElementById("status").innerHTML =
+        `<div class="success">${data.message}</div>`;
+
+    pdfUploaded = true;
+});
+
+/* -------- Ask Question -------- */
+document.getElementById("question").addEventListener("keydown", async function(e){
+    if(e.key !== "Enter") return;
+
+    const question = this.value.trim();
+    if(!question) return;
+
+    if(!pdfUploaded){
+        alert("Please upload a PDF first.");
+        return;
+    }
+
+    const chatBox = document.getElementById("chatBox");
+
+    chatBox.innerHTML += `<div class="msg-user"><b>You:</b> ${question}</div>`;
+    this.value = "";
+
+    const response = await fetch("/ask", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ question })
+    });
+
+    const data = await response.json();
+
+    chatBox.innerHTML += `<div class="msg-bot"><b>Answer:</b> ${data.answer}</div>`;
+    chatBox.scrollTop = chatBox.scrollHeight;
+});
+</script>
+
+</body>
+</html>
