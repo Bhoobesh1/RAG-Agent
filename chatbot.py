@@ -26,7 +26,7 @@ def handle_small_talk(user_input):
     ]
 
     for i in greetings:
-        if i in text:
+        if i==text or text.startswith(i):
             return "Hi 👋 How can I help you?"
 
     for j in closing:
