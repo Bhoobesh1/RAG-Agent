@@ -11,6 +11,10 @@ client = OpenAI()
 chunks = []
 index = None
 
+# ----------- CHAT MEMORY -----------
+conversation_memory = []
+MAX_MEMORY = 6   # store last 6 messages only
+
 # ---------------- SMALL TALK ----------------
 def handle_small_talk(user_input):
     text = user_input.lower().strip()
@@ -26,14 +30,14 @@ def handle_small_talk(user_input):
     ]
 
     for i in greetings:
-        if i==text or text.startswith(i):
+        if i == text or text.startswith(i):
             return "Hi 👋 How can I help you?"
 
     for j in closing:
         if j in text:
             return "You're welcome 😊 Feel free to ask anytime. Goodbye 👋"
 
-    return None 
+    return None
 
 # ---------------- ROUTES ----------------
 @app.route("/")
@@ -43,7 +47,9 @@ def home():
 # ---------------- PDF UPLOAD ----------------
 @app.route("/upload", methods=["POST"])
 def upload_pdf():
-    global chunks, index
+    global chunks, index, conversation_memory
+
+    conversation_memory = []  # reset memory on new PDF
 
     pdf = request.files["pdf"]
     if not pdf or not pdf.filename.endswith(".pdf"):
@@ -56,6 +62,7 @@ def upload_pdf():
         page_text = page.extract_text()
         if page_text:
             text += page_text
+
     if not text.strip():
         return jsonify({"message": "❌ No readable text found in PDF"}), 400
 
@@ -65,19 +72,17 @@ def upload_pdf():
 
     return jsonify({"message": "✅ PDF processed successfully!"})
 
-     
-
+# ---------------- CHUNKING ----------------
 def make_chunks(text, chunk_size=500, overlap=100):
     chunks = []
     start = 0
-    text_length = len(text)
-    while start < text_length:
+    while start < len(text):
         end = start + chunk_size
-        chunk = text[start:end]
-        chunks.append(chunk)
-        start += chunk_size- overlap 
+        chunks.append(text[start:end])
+        start += chunk_size - overlap
     return chunks
 
+# ---------------- EMBEDDINGS ----------------
 def get_embeddings(chunks):
     embeddings = []
     for chunk in chunks:
@@ -86,43 +91,60 @@ def get_embeddings(chunks):
             model="text-embedding-3-small"
         )
         embeddings.append(response.data[0].embedding)
-    return np.array(embeddings).astype("float32") 
+    return np.array(embeddings).astype("float32")
 
 def build_faiss_index(embeddings):
-    dimension = embeddings.shape[1] 
-    faiss_index = faiss.IndexFlatL2(dimension)
-    faiss_index.add(embeddings)
-    return faiss_index
-
+    dimension = embeddings.shape[1]
+    index = faiss.IndexFlatL2(dimension)
+    index.add(embeddings)
+    return index
 
 # ---------------- ASK QUESTION ----------------
 @app.route("/ask", methods=["POST"])
 def ask():
-    global chunks, index
+    global chunks, index, conversation_memory
 
     question = request.json["question"]
 
+    # Small talk
     small_talk_response = handle_small_talk(question)
     if small_talk_response:
         return jsonify({"answer": small_talk_response})
 
-
     if index is None:
         return jsonify({"answer": "❌ Please upload a PDF first."})
 
+    # Embed question
+    q_embed = client.embeddings.create(
+        input=question,
+        model="text-embedding-3-small"
+    ).data[0].embedding
 
-    q_embed = client.embeddings.create(input=question,model="text-embedding-3-small").data[0].embedding
     q_embed = np.array([q_embed]).astype("float32")
 
     distances, indices = index.search(q_embed, 3)
-    if distances[0][0] > 1.4:
+
+    if distances[0][0] > 1.4 and not conversation_memory:
         return jsonify({"answer": "❌ Please ask a valid question related to the document."})
-    
+
     context = "\n\n".join([chunks[i] for i in indices[0]])
+
+    # -------- MEMORY PROMPT --------
+    memory_text = ""
+    for m in conversation_memory:
+        memory_text += f"User: {m['question']}\nAssistant: {m['answer']}\n\n"
+
     prompt = f"""
+You are a helpful assistant.
+
+Previous conversation:
+{memory_text}
+
 Answer the question using ONLY the context below.
+
 Context:
 {context}
+
 Question:
 {question}
 """
@@ -132,7 +154,19 @@ Question:
         messages=[{"role": "user", "content": prompt}]
     )
 
-    return jsonify({"answer": response.choices[0].message.content})
+    answer = response.choices[0].message.content
+
+    # -------- SAVE TO MEMORY --------
+    conversation_memory.append({
+        "question": question,
+        "answer": answer
+    })
+
+    # Keep memory size limited
+    if len(conversation_memory) > MAX_MEMORY:
+        conversation_memory.pop(0)
+
+    return jsonify({"answer": answer})
 
 # ---------------- RUN SERVER ----------------
 if __name__ == "__main__":
