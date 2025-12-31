@@ -15,6 +15,7 @@ A web-based **PDF Question Answering System** that allows users to upload PDF do
 - 🔍 Semantic search using vector embeddings (FAISS)
 - 💬 Chat-style question and answer interface
 - 🗣️ Handles basic small talk (greetings, thanks, etc.)
+- 🧠 Conversation memory for contextual follow-up questions
 - ✅ Real-time PDF processing confirmation
 - 🎨 Modern dark-themed user interface
 
@@ -40,6 +41,7 @@ A web-based **PDF Question Answering System** that allows users to upload PDF do
 5. Embeddings are stored in a FAISS vector index.
 6. When a question is asked:
    - Relevant chunks are retrieved using semantic similarity.
+   - Previous conversation context (memory) is appended to maintain continuity.
    - The AI model generates an answer using only the retrieved content.
 7. General greetings or casual messages are handled separately using small-talk logic.
 
