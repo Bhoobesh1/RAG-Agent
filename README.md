@@ -1,6 +1,6 @@
 # RAG(Retrieval-Augmented Generation)
 # Web-Based PDF Question Answering System
-<img width="1891" height="871" alt="image" src="https://github.com/user-attachments/assets/2ee9557e-c28b-40e7-908b-abb6918d4b18" />
+<img width="1261" height="862" alt="image" src="https://github.com/user-attachments/assets/453560eb-42f3-43f3-9915-9b4bc157c84e" />
 
 # 📄 PDF Question Answering System
 
